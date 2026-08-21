@@ -12,6 +12,8 @@ import mediapipe as mp
 
 from utils import CvFpsCalc
 from model import KeyPointClassifier, PointHistoryClassifier
+from prosthetic.serial_controller import ArduinoController, list_ports
+from prosthetic.recorder import GestureRecorder
 
 FINGERTIP_INDICES = {4, 8, 12, 16, 20}
 
@@ -33,11 +35,48 @@ def get_args():
     parser.add_argument("--use_static_image_mode", action="store_true")
     parser.add_argument("--min_detection_confidence", type=float, default=0.7)
     parser.add_argument("--min_tracking_confidence", type=float, default=0.5)
+    # Arduino
+    parser.add_argument("--arduino", type=str, default=None,
+                        help="Serial port for Arduino (e.g. /dev/cu.usbmodem14101). "
+                             "Use --list-ports to discover available ports.")
+    parser.add_argument("--baud", type=int, default=9600)
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Print Arduino commands without sending (no hardware needed)")
+    parser.add_argument("--list-ports", action="store_true",
+                        help="List available serial ports and exit")
+    # Recording
+    parser.add_argument("--record", action="store_true",
+                        help="Record gesture session to recordings/")
     return parser.parse_args()
 
 
 def main():
     args = get_args()
+
+    if args.list_ports:
+        ports = list_ports()
+        if ports:
+            print("Available serial ports:")
+            for p in ports:
+                print(f"  {p}")
+        else:
+            print("No serial ports found.")
+        return
+
+    arduino = None
+    if args.arduino or args.dry_run:
+        port = args.arduino or "DRY_RUN"
+        arduino = ArduinoController(
+            port=port,
+            baud=args.baud,
+            dry_run=args.dry_run,
+        )
+        arduino.connect()
+
+    recorder = None
+    if args.record:
+        recorder = GestureRecorder()
+        recorder.start()
 
     cap = cv.VideoCapture(args.device)
     if not cap.isOpened():
@@ -120,6 +159,21 @@ def main():
                 finger_gesture_history.append(finger_gesture_id)
                 most_common_fg_id = Counter(finger_gesture_history).most_common()[0][0]
 
+                # Arduino output
+                if arduino:
+                    arduino.send_gesture(hand_sign_id)
+                    arduino.send_motion(most_common_fg_id)
+
+                # Recording
+                if recorder:
+                    recorder.record(
+                        gesture_id=int(hand_sign_id),
+                        gesture_label=keypoint_labels[hand_sign_id],
+                        motion_id=int(most_common_fg_id),
+                        motion_label=point_history_labels[most_common_fg_id],
+                        landmark_list=landmark_list,
+                    )
+
                 debug_image = draw_bounding_rect(debug_image, brect)
                 debug_image = draw_landmarks(debug_image, landmark_list)
                 debug_image = draw_info_text(
@@ -139,6 +193,11 @@ def main():
 
     cap.release()
     cv.destroyAllWindows()
+
+    if recorder:
+        recorder.stop()
+    if arduino:
+        arduino.disconnect()
 
 
 def _load_labels(path):
