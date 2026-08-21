@@ -56,7 +56,7 @@ def calc_gripper_angle(landmark_list):
 
     # Normalize: ~0.5x palm = closed, ~1.8x palm = fully open
     ratio = (spread / palm_size - 0.5) / 1.3
-    angle = int(max(0, min(1, ratio)) * 180)
+    angle = int(max(0, min(1, ratio)) * 45)
     return angle
 
 
@@ -73,7 +73,7 @@ def calc_wrist_angle(landmark_list):
     dy = landmark_list[INDEX_MCP][1] - landmark_list[WRIST][1]
     angle_rad = math.atan2(-dy, dx)          # flip y (image coords)
     angle_deg = math.degrees(angle_rad)      # -180 to 180
-    servo = int((angle_deg + 90) % 180)      # map to 0-180
+    servo = int((angle_deg + 90) % 180 / 180 * 45)  # map to 0-45
     return servo
 
 
@@ -123,7 +123,7 @@ class ArduinoController:
 
     def send_idle(self):
         """Send neutral position when no hand is detected."""
-        self._send(90, 90)
+        self._send(22, 22)
 
     def _send(self, gripper_angle, wrist_angle):
         packet = bytes([START_BYTE, gripper_angle, wrist_angle])

@@ -27,8 +27,8 @@ void setup() {
     Serial.begin(BAUD_RATE);
     gripperServo.attach(GRIPPER_PIN);
     wristServo.attach(WRIST_PIN);
-    gripperServo.write(90);
-    wristServo.write(90);
+    gripperServo.write(22);
+    wristServo.write(22);
 }
 
 void loop() {
