@@ -68,7 +68,7 @@ def main():
         port = args.arduino or "DRY_RUN"
         arduino = ArduinoController(
             port=port,
-            baud=args.baud,
+            baud=115200,
             dry_run=args.dry_run,
         )
         arduino.connect()
@@ -160,10 +160,9 @@ def main():
                     finger_gesture_history.append(finger_gesture_id)
                     most_common_fg_id = Counter(finger_gesture_history).most_common()[0][0]
 
-                    # Arduino output
+                    # Arduino output — stream angles directly from landmarks
                     if arduino:
-                        arduino.send_gesture(hand_sign_id)
-                        arduino.send_motion(most_common_fg_id)
+                        arduino.send_frame(landmark_list)
 
                     # Recording
                     if recorder:
@@ -186,6 +185,8 @@ def main():
                     )
             else:
                 point_history.append([0, 0])
+                if arduino:
+                    arduino.send_idle()
 
             debug_image = draw_point_history(debug_image, point_history)
             debug_image = draw_info(debug_image, fps, mode, number)
