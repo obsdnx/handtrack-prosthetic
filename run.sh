@@ -1,3 +1,4 @@
 #!/bin/bash
 cd "$(dirname "$0")"
-venv/bin/python app.py
+source venv/bin/activate
+python app.py "$@"
