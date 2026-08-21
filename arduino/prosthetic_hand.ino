@@ -25,22 +25,25 @@ const int GRIPPER_PIN   = 9;
 const int WRIST_PIN     = 10;
 
 // Servo positions (degrees) — tune to your mechanism
-const int GRIPPER_OPEN  = 0;
-const int GRIPPER_CLOSE = 180;
-const int GRIPPER_PINCH = 90;
-const int WRIST_CENTER  = 90;
-const int WRIST_CW      = 180;
-const int WRIST_CCW     = 0;
+const int GRIPPER_OPEN   = 0;
+const int GRIPPER_CLOSE  = 180;
+const int GRIPPER_PINCH  = 90;
+const int WRIST_CENTER   = 90;
+const int WRIST_CW       = 180;
+const int WRIST_CCW      = 0;
+const int WRIST_ANGLE_A  = 45;   // first wrist position on close
+const int WRIST_ANGLE_B  = 135;  // second wrist position on close
 
 Servo gripperServo;
 Servo wristServo;
+
+bool wristToggle = false;
 
 void setup() {
     Serial.begin(BAUD_RATE);
     gripperServo.attach(GRIPPER_PIN);
     wristServo.attach(WRIST_PIN);
 
-    // Start in neutral position
     gripperServo.write(GRIPPER_OPEN);
     wristServo.write(WRIST_CENTER);
 }
@@ -57,8 +60,10 @@ void handleCommand(byte cmd) {
         case 0x01:  // OPEN_GRIPPER
             gripperServo.write(GRIPPER_OPEN);
             break;
-        case 0x02:  // CLOSE_GRIPPER
+        case 0x02:  // CLOSE_GRIPPER — also toggles wrist angle
             gripperServo.write(GRIPPER_CLOSE);
+            wristToggle = !wristToggle;
+            wristServo.write(wristToggle ? WRIST_ANGLE_A : WRIST_ANGLE_B);
             break;
         case 0x03:  // PINCH
             gripperServo.write(GRIPPER_PINCH);
@@ -70,7 +75,6 @@ void handleCommand(byte cmd) {
             wristServo.write(WRIST_CCW);
             break;
         case 0x06:  // HOLD
-            // No movement
             break;
         case 0xFF:  // PING
             Serial.write(0xFF);
