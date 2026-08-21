@@ -12,37 +12,61 @@ Real-time hand sign and finger gesture recognition using MediaPipe and a lightwe
 - Python 3.12 (TensorFlow does not yet support 3.13+)
 - A webcam
 
-### Install
+### Step 1 — Clone the repo
+
+```bash
+git clone https://github.com/obsdnx/handtrack-prosthetic.git
+cd handtrack-prosthetic/montreal
+```
+
+### Step 2 — Create a virtual environment
 
 ```bash
 python3.12 -m venv venv
 source venv/bin/activate
+```
+
+### Step 3 — Install dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-### Grant camera access
+This installs mediapipe, TensorFlow, and OpenCV. Takes ~2 minutes on first run.
 
-macOS requires explicit permission before any app can use the camera.
+### Step 4 — Grant camera access
+
+macOS blocks camera access by default for terminal apps.
 
 1. Open **System Settings → Privacy & Security → Camera**
-2. Enable access for **Terminal** (or whichever terminal app you use)
-3. If the permission prompt never appeared, run this to reset and re-trigger it:
+2. Enable access for **Terminal** (or iTerm2, whichever you use)
+3. If you never saw a permission dialog, reset and re-trigger it:
    ```bash
    tccutil reset Camera
    ```
 
-### Run
-
-```bash
-source venv/bin/activate
-python app.py
-```
-
-Or, to launch directly from Terminal.app (which ensures the camera permission dialog appears):
+### Step 5 — Run the app
 
 ```bash
 open -a Terminal run.sh
 ```
+
+This opens a new Terminal.app window (which has camera access) and launches the app. A window will appear showing your webcam feed with hand landmarks overlaid.
+
+> If you prefer to run from your own terminal after granting camera access:
+> ```bash
+> source venv/bin/activate
+> python app.py
+> ```
+
+### Step 6 — Run the tests
+
+```bash
+source venv/bin/activate
+pytest tests/ -v
+```
+
+All 31 tests should pass. No camera or hardware required.
 
 ### Options
 
