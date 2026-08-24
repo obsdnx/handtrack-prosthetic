@@ -48,7 +48,7 @@ def calc_gripper_angle(landmark_list):
         for tip, mcp in zip(FINGERTIPS, FINGER_MCPS)
     ) / len(FINGERTIPS)
     ratio = (spread / palm_size - 0.5) / 1.3
-    return int((1 - max(0, min(1, ratio))) * 45)  # inverted: open=0, closed=45
+    return int((1 - max(0, min(1, ratio))) * 90)  # 0=closed, 90=open
 
 
 def calc_wrist_angle(landmark_list):
@@ -100,20 +100,19 @@ class ArduinoController:
         return self.dry_run or (self._serial is not None and self._serial.is_open)
 
     def send_frame(self, landmark_list):
-        """Calculate gripper and wrist angles from landmarks and send."""
-        gripper = calc_gripper_angle(landmark_list)
-        wrist   = calc_wrist_angle(landmark_list)
-        self._send(gripper, wrist)
-        return gripper, wrist
+        """Calculate finger angle from landmarks and send."""
+        finger = calc_gripper_angle(landmark_list)
+        self._send(finger)
+        return finger
 
     def send_idle(self):
         """Send open position when no hand is detected."""
-        self._send(0, 0)
+        self._send(0)
 
-    def _send(self, gripper, wrist):
-        packet = bytes([START_BYTE, gripper, wrist])
+    def _send(self, finger):
+        packet = bytes([START_BYTE, finger])
         if self.dry_run:
-            print(f"[Arduino] gripper={gripper}°  wrist={wrist}°")
+            print(f"[Arduino] finger={finger}°")
             return
         with self._lock:
             if self._serial and self._serial.is_open:

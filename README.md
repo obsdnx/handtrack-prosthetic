@@ -155,6 +155,55 @@ Open the relevant notebook and run all cells:
 
 ---
 
+## Prosthetic integration
+
+### Servo mechanism
+
+Each finger is controlled by a single micro servo:
+
+| Angle | Finger state |
+|---|---|
+| 0° | Closed (curled into palm) |
+| 90° | Open (fully extended) |
+
+**Rotation direction:**
+- **Anticlockwise** — pulls the finger in towards the palm (closing)
+- **Clockwise** — pushes the finger out away from the palm (opening)
+
+### Wiring
+
+| Servo | Arduino pin |
+|---|---|
+| Gripper (finger curl) | 9 |
+| Wrist | 10 |
+
+Serial protocol: 3-byte packet `[0xAA, finger_angle, wrist_angle]` at 115200 baud.
+
+### Running with Arduino
+
+```bash
+# Find your port
+python app.py --list-ports
+
+# Run with Arduino connected
+python app.py --arduino /dev/cu.usbmodem1101
+
+# Test servos without camera
+python test_arduino.py /dev/cu.usbmodem1101
+
+# Dry run (prints commands, no hardware needed)
+python app.py --dry-run
+```
+
+### Recording sessions
+
+```bash
+python app.py --record
+# Saves to recordings/session_TIMESTAMP.csv
+```
+
+---
+
 ## Credits
 
 Original: [Kazuhito Takahashi](https://twitter.com/KzhtTkhs)  

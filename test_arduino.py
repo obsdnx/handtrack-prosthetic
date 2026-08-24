@@ -1,5 +1,5 @@
 """
-Quick test — sweeps gripper and wrist servos without camera.
+Quick test — sweeps finger servo without camera.
 Run: python test_arduino.py /dev/cu.usbmodem1101
 """
 import sys
@@ -15,34 +15,28 @@ ser = serial.Serial(PORT, BAUD, timeout=1)
 time.sleep(2)
 print("Connected. Starting sweep...\n")
 
-def send(gripper, wrist):
-    ser.write(bytes([START_BYTE, gripper, wrist]))
-    print(f"  gripper={gripper:2d}°  wrist={wrist:2d}°")
+def send(angle):
+    ser.write(bytes([START_BYTE, angle]))
+    print(f"  finger={angle:3d}°")
     time.sleep(1)
 
 try:
-    print(">> Both closed (0°)")
-    send(0, 0)
+    print(">> Closed (0°)")
+    send(0)
 
-    print(">> Gripper open (45°)")
-    send(45, 0)
+    print(">> Half open (45°)")
+    send(45)
 
-    print(">> Gripper closed (0°)")
-    send(0, 0)
+    print(">> Fully open (90°)")
+    send(90)
 
-    print(">> Wrist open (45°)")
-    send(0, 45)
+    print(">> Half open (45°)")
+    send(45)
 
-    print(">> Wrist closed (0°)")
-    send(0, 0)
+    print(">> Closed (0°)")
+    send(0)
 
-    print(">> Both open (45°)")
-    send(45, 45)
-
-    print(">> Both closed (0°)")
-    send(0, 0)
-
-    print("\nDid both servos move?")
+    print("\nDid the servo move from 0° to 90°?")
 
 finally:
     ser.close()

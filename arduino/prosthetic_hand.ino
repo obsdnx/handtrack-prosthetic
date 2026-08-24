@@ -1,41 +1,35 @@
 /*
- * Prosthetic Hand Controller — 2 Servo Mirroring Mode
+ * Prosthetic Hand Controller — Finger Servo
  *
- * Receives 3-byte packets from Python:
- *   [0xAA, gripper_angle, wrist_angle]
+ * Receives 2-byte packets from Python:
+ *   [0xAA, finger_angle]
  *
- *   Each angle: 0 (closed/curled) to 45 (open/extended)
+ *   0°  = closed (anticlockwise, finger curled into palm)
+ *   90° = open   (clockwise, finger extended)
  *
  * Wiring:
- *   GRIPPER servo signal → pin 9
- *   WRIST   servo signal → pin 10
+ *   Finger servo signal → pin 9
  */
 
 #include <Servo.h>
 
-const int BAUD_RATE   = 115200;
-const byte START_BYTE = 0xAA;
-const int GRIPPER_PIN = 9;
-const int WRIST_PIN   = 10;
+const int BAUD_RATE    = 115200;
+const byte START_BYTE  = 0xAA;
+const int FINGER_PIN   = 9;
 
-Servo gripperServo;
-Servo wristServo;
+Servo fingerServo;
 
 void setup() {
     Serial.begin(BAUD_RATE);
-    gripperServo.attach(GRIPPER_PIN);
-    wristServo.attach(WRIST_PIN);
-    gripperServo.write(0);
-    wristServo.write(0);
+    fingerServo.attach(FINGER_PIN);
+    fingerServo.write(0);  // start closed
 }
 
 void loop() {
-    if (Serial.available() >= 3) {
+    if (Serial.available() >= 2) {
         if (Serial.read() == START_BYTE) {
-            byte gripperAngle = Serial.read();
-            byte wristAngle   = Serial.read();
-            gripperServo.write(gripperAngle);
-            wristServo.write(wristAngle);
+            byte angle = Serial.read();
+            fingerServo.write(angle);
         }
     }
 }
