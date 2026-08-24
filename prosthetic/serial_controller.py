@@ -19,14 +19,11 @@ except ImportError:
 
 START_BYTE = 0xAA
 
-# MediaPipe landmark indices per finger: (tip, pip, mcp)
-WRIST = 0
-FINGERS = {
-    "thumb":  (4,  3,  2),
-    "index":  (8,  7,  5),
-    "middle": (12, 11, 9),
-    "ring":   (16, 15, 13),
-}
+# MediaPipe landmark indices
+WRIST      = 0
+INDEX_MCP  = 5
+FINGERTIPS = [4, 8, 12, 16, 20]
+FINGER_MCPS = [2, 5, 9, 13, 17]
 
 
 def list_ports():
@@ -39,30 +36,30 @@ def _dist(a, b):
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
 
 
-def calc_finger_angle(landmark_list, tip_idx, pip_idx, mcp_idx):
-    """
-    Returns 0-45 for a single finger.
-    0 = fully curled, 45 = fully extended.
-    Measured as tip-to-mcp distance normalized by palm size.
-    """
+def calc_gripper_angle(landmark_list):
+    """Returns 0-45 representing how open the hand is."""
     if not landmark_list or len(landmark_list) < 21:
         return 0
-
     palm_size = _dist(landmark_list[WRIST], landmark_list[9])
     if palm_size < 1:
         return 0
-
-    extension = _dist(landmark_list[tip_idx], landmark_list[mcp_idx])
-    ratio = (extension / palm_size - 0.4) / 1.2
+    spread = sum(
+        _dist(landmark_list[tip], landmark_list[mcp])
+        for tip, mcp in zip(FINGERTIPS, FINGER_MCPS)
+    ) / len(FINGERTIPS)
+    ratio = (spread / palm_size - 0.5) / 1.3
     return int(max(0, min(1, ratio)) * 45)
 
 
-def calc_all_finger_angles(landmark_list):
-    """Returns [thumb, index, middle, ring] angles, each 0-45."""
-    return [
-        calc_finger_angle(landmark_list, *indices)
-        for indices in FINGERS.values()
-    ]
+def calc_wrist_angle(landmark_list):
+    """Returns 0-45 representing wrist tilt."""
+    if not landmark_list or len(landmark_list) < 21:
+        return 0
+    dx = landmark_list[INDEX_MCP][0] - landmark_list[WRIST][0]
+    dy = landmark_list[INDEX_MCP][1] - landmark_list[WRIST][1]
+    angle_rad = math.atan2(-dy, dx)
+    angle_deg = math.degrees(angle_rad)
+    return int((angle_deg + 90) % 180 / 180 * 45)
 
 
 class ArduinoController:
@@ -103,21 +100,20 @@ class ArduinoController:
         return self.dry_run or (self._serial is not None and self._serial.is_open)
 
     def send_frame(self, landmark_list):
-        """Calculate per-finger angles from landmarks and send to Arduino."""
-        angles = calc_all_finger_angles(landmark_list)
-        self._send(angles)
-        return angles
+        """Calculate gripper and wrist angles from landmarks and send."""
+        gripper = calc_gripper_angle(landmark_list)
+        wrist   = calc_wrist_angle(landmark_list)
+        self._send(gripper, wrist)
+        return gripper, wrist
 
     def send_idle(self):
         """Send closed position when no hand is detected."""
-        self._send([0, 0, 0, 0])
+        self._send(0, 0)
 
-    def _send(self, angles):
-        packet = bytes([START_BYTE, *angles])
+    def _send(self, gripper, wrist):
+        packet = bytes([START_BYTE, gripper, wrist])
         if self.dry_run:
-            names = ["thumb", "index", "middle", "ring"]
-            parts = "  ".join(f"{n}={a}°" for n, a in zip(names, angles))
-            print(f"[Arduino] {parts}")
+            print(f"[Arduino] gripper={gripper}°  wrist={wrist}°")
             return
         with self._lock:
             if self._serial and self._serial.is_open:
