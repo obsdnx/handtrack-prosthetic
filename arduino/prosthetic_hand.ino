@@ -1,35 +1,45 @@
 /*
- * Prosthetic Hand Controller — Finger Servo
+ * Prosthetic Hand Controller — 2 Finger Servos
  *
  * Receives 2-byte packets from Python:
  *   [0xAA, finger_angle]
  *
- *   0°  = closed (anticlockwise, finger curled into palm)
- *   90° = open   (clockwise, finger extended)
+ *   0°  = closed (finger curled into palm)
+ *   90° = open   (finger extended)
+ *
+ * Both servos move to the same angle together.
  *
  * Wiring:
- *   Finger servo signal → pin 9
+ *   Servo 1 signal → pin 9
+ *   Servo 2 signal → pin 10
  */
 
 #include <Servo.h>
 
-const int BAUD_RATE    = 115200;
-const byte START_BYTE  = 0xAA;
-const int FINGER_PIN   = 9;
+const int BAUD_RATE   = 115200;
+const byte START_BYTE = 0xAA;
 
-Servo fingerServo;
+Servo servo1;
+Servo servo2;
 
 void setup() {
     Serial.begin(BAUD_RATE);
-    fingerServo.attach(FINGER_PIN);
-    fingerServo.write(0);  // start closed
+    servo1.attach(9);
+    servo2.attach(10);
+    servo1.write(0);
+    servo2.write(0);
+    pinMode(13, OUTPUT);
 }
 
 void loop() {
     if (Serial.available() >= 2) {
         if (Serial.read() == START_BYTE) {
             byte angle = Serial.read();
-            fingerServo.write(angle);
+            servo1.write(angle);
+            servo2.write(angle);
+            digitalWrite(13, HIGH);
+            delay(50);
+            digitalWrite(13, LOW);
         }
     }
 }
