@@ -1,5 +1,5 @@
 """
-Quick test — sweeps gripper and wrist servos without camera.
+Quick test — sweeps all 4 servos without camera.
 Run: python test_arduino.py /dev/cu.usbmodem1101
 """
 import sys
@@ -15,37 +15,34 @@ ser = serial.Serial(PORT, BAUD, timeout=1)
 time.sleep(2)
 print("Connected. Starting sweep...\n")
 
-def send(gripper, wrist):
-    ser.write(bytes([START_BYTE, gripper, wrist]))
-    print(f"  gripper={gripper:3d}°  wrist={wrist:3d}°")
-    time.sleep(0.05)
+def send(thumb, index, middle, ring):
+    ser.write(bytes([START_BYTE, thumb, index, middle, ring]))
+    print(f"  thumb={thumb:2d}°  index={index:2d}°  middle={middle:2d}°  ring={ring:2d}°")
+    time.sleep(0.8)
 
 try:
-    print(">> Gripper open (45)")
-    send(45, 22)
-    time.sleep(1)
+    print(">> All closed (0°)")
+    send(0, 0, 0, 0)
 
-    print(">> Gripper close (0)")
-    send(0, 22)
-    time.sleep(1)
+    print(">> All open (45°)")
+    send(45, 45, 45, 45)
 
-    print(">> Gripper mid (22)")
-    send(22, 22)
-    time.sleep(1)
+    print(">> Thumb only open")
+    send(45, 0, 0, 0)
 
-    print(">> Wrist left (0)")
-    send(22, 0)
-    time.sleep(1)
+    print(">> Index only open")
+    send(0, 45, 0, 0)
 
-    print(">> Wrist right (45)")
-    send(22, 45)
-    time.sleep(1)
+    print(">> Middle only open")
+    send(0, 0, 45, 0)
 
-    print(">> Wrist center (22)")
-    send(22, 22)
-    time.sleep(1)
+    print(">> Ring only open")
+    send(0, 0, 0, 45)
 
-    print("\nSweep complete. Did the servos move?")
+    print(">> All closed")
+    send(0, 0, 0, 0)
+
+    print("\nDid each servo move independently?")
 
 finally:
     ser.close()

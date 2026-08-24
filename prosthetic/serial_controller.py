@@ -19,11 +19,14 @@ except ImportError:
 
 START_BYTE = 0xAA
 
-# MediaPipe landmark indices
-WRIST       = 0
-INDEX_MCP   = 5
-FINGERTIPS  = [4, 8, 12, 16, 20]
-FINGER_MCPS = [2, 5, 9, 13, 17]
+# MediaPipe landmark indices per finger: (tip, pip, mcp)
+WRIST = 0
+FINGERS = {
+    "thumb":  (4,  3,  2),
+    "index":  (8,  7,  5),
+    "middle": (12, 11, 9),
+    "ring":   (16, 15, 13),
+}
 
 
 def list_ports():
@@ -36,45 +39,30 @@ def _dist(a, b):
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
 
 
-def calc_gripper_angle(landmark_list):
+def calc_finger_angle(landmark_list, tip_idx, pip_idx, mcp_idx):
     """
-    Returns 0-180 representing how open the hand is.
-    Measures average fingertip distance from their MCP base joints,
-    normalized against the palm size (wrist to middle MCP).
+    Returns 0-45 for a single finger.
+    0 = fully curled, 45 = fully extended.
+    Measured as tip-to-mcp distance normalized by palm size.
     """
     if not landmark_list or len(landmark_list) < 21:
-        return 90
+        return 0
 
     palm_size = _dist(landmark_list[WRIST], landmark_list[9])
     if palm_size < 1:
-        return 90
+        return 0
 
-    spread = sum(
-        _dist(landmark_list[tip], landmark_list[mcp])
-        for tip, mcp in zip(FINGERTIPS, FINGER_MCPS)
-    ) / len(FINGERTIPS)
-
-    # Normalize: ~0.5x palm = closed, ~1.8x palm = fully open
-    ratio = (spread / palm_size - 0.5) / 1.3
-    angle = int(max(0, min(1, ratio)) * 45)
-    return angle
+    extension = _dist(landmark_list[tip_idx], landmark_list[mcp_idx])
+    ratio = (extension / palm_size - 0.4) / 1.2
+    return int(max(0, min(1, ratio)) * 45)
 
 
-def calc_wrist_angle(landmark_list):
-    """
-    Returns 0-180 representing wrist tilt.
-    Uses the angle of the line from wrist to index MCP (knuckle).
-    Upright hand = 90, tilted left = 0, tilted right = 180.
-    """
-    if not landmark_list or len(landmark_list) < 21:
-        return 90
-
-    dx = landmark_list[INDEX_MCP][0] - landmark_list[WRIST][0]
-    dy = landmark_list[INDEX_MCP][1] - landmark_list[WRIST][1]
-    angle_rad = math.atan2(-dy, dx)          # flip y (image coords)
-    angle_deg = math.degrees(angle_rad)      # -180 to 180
-    servo = int((angle_deg + 90) % 180 / 180 * 45)  # map to 0-45
-    return servo
+def calc_all_finger_angles(landmark_list):
+    """Returns [thumb, index, middle, ring] angles, each 0-45."""
+    return [
+        calc_finger_angle(landmark_list, *indices)
+        for indices in FINGERS.values()
+    ]
 
 
 class ArduinoController:
@@ -115,20 +103,21 @@ class ArduinoController:
         return self.dry_run or (self._serial is not None and self._serial.is_open)
 
     def send_frame(self, landmark_list):
-        """Calculate angles from landmarks and send to Arduino."""
-        gripper = calc_gripper_angle(landmark_list)
-        wrist   = calc_wrist_angle(landmark_list)
-        self._send(gripper, wrist)
-        return gripper, wrist
+        """Calculate per-finger angles from landmarks and send to Arduino."""
+        angles = calc_all_finger_angles(landmark_list)
+        self._send(angles)
+        return angles
 
     def send_idle(self):
-        """Send neutral position when no hand is detected."""
-        self._send(22, 22)
+        """Send closed position when no hand is detected."""
+        self._send([0, 0, 0, 0])
 
-    def _send(self, gripper_angle, wrist_angle):
-        packet = bytes([START_BYTE, gripper_angle, wrist_angle])
+    def _send(self, angles):
+        packet = bytes([START_BYTE, *angles])
         if self.dry_run:
-            print(f"[Arduino] gripper={gripper_angle}° wrist={wrist_angle}°")
+            names = ["thumb", "index", "middle", "ring"]
+            parts = "  ".join(f"{n}={a}°" for n, a in zip(names, angles))
+            print(f"[Arduino] {parts}")
             return
         with self._lock:
             if self._serial and self._serial.is_open:
