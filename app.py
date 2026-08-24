@@ -12,7 +12,7 @@ import mediapipe as mp
 
 from utils import CvFpsCalc
 from model import KeyPointClassifier, PointHistoryClassifier
-from prosthetic.serial_controller import ArduinoController, list_ports
+from prosthetic.serial_controller import ArduinoController, list_ports, find_arduino
 from prosthetic.recorder import GestureRecorder
 
 FINGERTIP_INDICES = {4, 8, 12, 16, 20}
@@ -65,9 +65,12 @@ def main():
 
     arduino = None
     if args.arduino or args.dry_run:
-        port = args.arduino or "DRY_RUN"
+        port = args.arduino or find_arduino()
+        if not port and not args.dry_run:
+            print("Error: no Arduino found. Plug it in or specify --arduino /dev/cu.xxx", file=sys.stderr)
+            sys.exit(1)
         arduino = ArduinoController(
-            port=port,
+            port=port or "DRY_RUN",
             baud=115200,
             dry_run=args.dry_run,
         )

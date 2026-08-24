@@ -32,6 +32,18 @@ def list_ports():
     return [p.device for p in serial.tools.list_ports.comports()]
 
 
+def find_arduino():
+    """Auto-detect Arduino by USB vendor ID or port name."""
+    if not SERIAL_AVAILABLE:
+        return None
+    for p in serial.tools.list_ports.comports():
+        # Arduino vendor IDs or usbmodem/usbserial in port name
+        if p.vid in (0x2341, 0x1A86, 0x0403, 0x10C4) or \
+           any(x in p.device for x in ("usbmodem", "usbserial", "ttyUSB", "ttyACM")):
+            return p.device
+    return None
+
+
 def _dist(a, b):
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
 
