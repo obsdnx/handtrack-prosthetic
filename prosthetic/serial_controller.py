@@ -99,8 +99,17 @@ class ArduinoController:
         if not SERIAL_AVAILABLE:
             raise RuntimeError("pyserial not installed. Run: pip install pyserial")
         import time
-        self._serial = serial.Serial(self.port, self.baud, timeout=1)
-        time.sleep(2)
+        self._serial = serial.Serial(self.port, self.baud, timeout=5)
+        print(f"[Arduino] Waiting for ready signal on {self.port}...")
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            if self._serial.in_waiting:
+                byte = self._serial.read(1)
+                if byte == b'\xBB':
+                    break
+        else:
+            print("[Arduino] Warning: no ready signal received, proceeding anyway")
+        self._serial.timeout = 1
         print(f"[Arduino] Connected to {self.port} @ {self.baud} baud")
 
     def disconnect(self):

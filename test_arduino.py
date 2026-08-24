@@ -24,8 +24,15 @@ BAUD = 115200
 START_BYTE = 0xAA
 
 print(f"Connecting to {PORT} @ {BAUD}...")
-ser = serial.Serial(PORT, BAUD, timeout=1)
-time.sleep(4)
+ser = serial.Serial(PORT, BAUD, timeout=5)
+print("Waiting for Arduino ready signal...")
+deadline = time.time() + 10
+while time.time() < deadline:
+    if ser.in_waiting:
+        byte = ser.read(1)
+        if byte == b'\xBB':
+            break
+ser.timeout = 1
 print("Connected. Starting sweep...\n")
 
 def send(angle):

@@ -22,13 +22,18 @@ const byte START_BYTE = 0xAA;
 Servo servo1;
 Servo servo2;
 
+const byte READY_BYTE = 0xBB;
+
 void setup() {
-    Serial.begin(BAUD_RATE);
     servo1.attach(9);
     servo2.attach(10);
     servo1.write(0);
     servo2.write(0);
     pinMode(13, OUTPUT);
+
+    Serial.begin(BAUD_RATE);
+    delay(100);
+    Serial.write(READY_BYTE);  // tell Python we're ready
 }
 
 void loop() {
@@ -38,7 +43,7 @@ void loop() {
             servo1.write(angle);
             servo2.write(angle);
             digitalWrite(13, HIGH);
-            delay(50);
+            delay(30);
             digitalWrite(13, LOW);
         }
     }
