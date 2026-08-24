@@ -48,7 +48,7 @@ def calc_gripper_angle(landmark_list):
         for tip, mcp in zip(FINGERTIPS, FINGER_MCPS)
     ) / len(FINGERTIPS)
     ratio = (spread / palm_size - 0.5) / 1.3
-    return int(max(0, min(1, ratio)) * 45)
+    return int((1 - max(0, min(1, ratio))) * 45)  # inverted: open=0, closed=45
 
 
 def calc_wrist_angle(landmark_list):
@@ -107,7 +107,7 @@ class ArduinoController:
         return gripper, wrist
 
     def send_idle(self):
-        """Send closed position when no hand is detected."""
+        """Send open position when no hand is detected."""
         self._send(0, 0)
 
     def _send(self, gripper, wrist):
