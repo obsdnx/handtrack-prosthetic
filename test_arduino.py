@@ -35,9 +35,12 @@ while time.time() < deadline:
 ser.timeout = 1
 print("Connected. Starting sweep...\n")
 
+STEP_DELAY = 1.5  # seconds between steps — servo needs ~500ms to physically move
+
 def send(angle):
     ser.write(bytes([START_BYTE, angle]))
-    print(f"  finger={angle:3d}°")
+    print(f"  sent finger={angle:3d}° → waiting {STEP_DELAY}s for servo...")
+    time.sleep(STEP_DELAY)
 
 try:
     print(">> Closed (0°)")
@@ -55,7 +58,7 @@ try:
     print(">> Closed (0°)")
     send(0)
 
-    print("\nDid the servo move from 0° to 90°?")
+    print("\nDid the servo sweep 0 → 45 → 90 → 45 → 0?")
 
 finally:
     ser.close()

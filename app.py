@@ -4,6 +4,7 @@ import copy
 import argparse
 import itertools
 import sys
+import time
 from collections import Counter, deque
 
 import cv2 as cv
@@ -36,9 +37,9 @@ def get_args():
     parser.add_argument("--min_detection_confidence", type=float, default=0.7)
     parser.add_argument("--min_tracking_confidence", type=float, default=0.5)
     # Arduino
-    parser.add_argument("--arduino", type=str, default=None,
-                        help="Serial port for Arduino (e.g. /dev/cu.usbmodem14101). "
-                             "Use --list-ports to discover available ports.")
+    parser.add_argument("--arduino", nargs="?", const="auto", default=None,
+                        help="Connect to Arduino. Optionally specify port (e.g. /dev/cu.usbmodem101). "
+                             "Omit port to auto-detect. Use --list-ports to discover available ports.")
     parser.add_argument("--baud", type=int, default=9600)
     parser.add_argument("--dry-run", action="store_true",
                         help="Print Arduino commands without sending (no hardware needed)")
@@ -64,14 +65,14 @@ def main():
         return
 
     arduino = None
-    if args.arduino or args.dry_run:
-        port = args.arduino or find_arduino()
+    if args.arduino is not None or args.dry_run:
+        port = (None if args.arduino == "auto" else args.arduino) or find_arduino()
         if not port and not args.dry_run:
             print("Error: no Arduino found. Plug it in or specify --arduino /dev/cu.xxx", file=sys.stderr)
             sys.exit(1)
         arduino = ArduinoController(
             port=port or "DRY_RUN",
-            baud=115200,
+            baud=9600,
             dry_run=args.dry_run,
         )
         arduino.connect()
@@ -112,6 +113,8 @@ def main():
     )
 
     fps_calc = CvFpsCalc(buffer_len=10)
+    last_serial_send = 0.0
+    SERIAL_INTERVAL = 0.1  # send to Arduino at most 10 times/second
 
     history_length = 16
     point_history = deque(maxlen=history_length)
@@ -163,9 +166,15 @@ def main():
                     finger_gesture_history.append(finger_gesture_id)
                     most_common_fg_id = Counter(finger_gesture_history).most_common()[0][0]
 
-                    # Arduino output — stream angles directly from landmarks
-                    if arduino:
-                        arduino.send_frame(landmark_list)
+                    # Arduino output — rate-limited to 10Hz to avoid flooding serial buffer
+                    servo_angle = 0
+                    raw_angle = 0
+                    now = time.monotonic()
+                    if arduino and now - last_serial_send >= SERIAL_INTERVAL:
+                        servo_angle, raw_angle = arduino.send_frame(landmark_list)
+                        last_serial_send = now
+
+                    debug_image = draw_servo_angle(debug_image, servo_angle, raw_angle)
 
                     # Recording
                     if recorder:
@@ -190,6 +199,7 @@ def main():
                 point_history.append([0, 0])
                 if arduino:
                     arduino.send_idle()
+                debug_image = draw_servo_angle(debug_image, 0, 0)
 
             debug_image = draw_point_history(debug_image, point_history)
             debug_image = draw_info(debug_image, fps, mode, number)
@@ -279,6 +289,14 @@ def logging_csv(number, mode, landmark_list, point_history_list):
             "model/point_history_classifier/point_history.csv", "a", newline=""
         ) as f:
             csv.writer(f).writerow([number, *point_history_list])
+
+
+def draw_servo_angle(image, angle, raw=0):
+    h = image.shape[0]
+    label = f"Servo: {angle:2d}deg  raw: {raw:2d}"
+    cv.putText(image, label, (10, h - 20), cv.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 3, cv.LINE_AA)
+    cv.putText(image, label, (10, h - 20), cv.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 120), 2, cv.LINE_AA)
+    return image
 
 
 def draw_landmarks(image, landmark_point):

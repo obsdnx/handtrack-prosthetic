@@ -1,0 +1,11 @@
+IMPORTANT NOTES — Prosthetic Hand
+
+Servo direction:
+- Thumb opens when rotating anti-clockwise
+- Thumb closes when rotating clockwise
+
+LCD interaction idea (future feature):
+- LCD displays: "Hi, I'm a robot. Teach me to say SOS."
+- User performs: close, open, close (SOS in hand gesture)
+- Robot imitates the sequence with servos
+- LCD then displays: "Wow, thank you!"

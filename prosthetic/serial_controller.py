@@ -48,19 +48,22 @@ def _dist(a, b):
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
 
 
+# (tip, pip) pairs for index, middle, ring, pinky
+_FINGER_JOINTS = [(8, 6), (12, 10), (16, 14), (20, 18)]
+
 def calc_gripper_angle(landmark_list):
-    """Returns 0-45 representing how open the hand is."""
+    """
+    Returns 0–88 based on how many fingers are curled.
+    A finger is curled when its tip is below its PIP joint (Y increases downward).
+    0 = fully open, 88 = fully closed fist.
+    """
     if not landmark_list or len(landmark_list) < 21:
         return 0
-    palm_size = _dist(landmark_list[WRIST], landmark_list[9])
-    if palm_size < 1:
-        return 0
-    spread = sum(
-        _dist(landmark_list[tip], landmark_list[mcp])
-        for tip, mcp in zip(FINGERTIPS, FINGER_MCPS)
-    ) / len(FINGERTIPS)
-    ratio = (spread / palm_size - 0.5) / 1.3
-    return int((1 - max(0, min(1, ratio))) * 90)  # 0=closed, 90=open
+    curled = sum(
+        1 for tip, pip in _FINGER_JOINTS
+        if landmark_list[tip][1] > landmark_list[pip][1]
+    )
+    return curled * 22  # 0, 22, 44, 66, 88
 
 
 def calc_wrist_angle(landmark_list):
@@ -85,12 +88,14 @@ class ArduinoController:
         ctrl.disconnect()
     """
 
-    def __init__(self, port, baud=115200, dry_run=False):
+    def __init__(self, port, baud=9600, dry_run=False):
         self.port = port
         self.baud = baud
         self.dry_run = dry_run
         self._serial = None
         self._lock = threading.Lock()
+        self._state = 0          # current servo state (0 or 90)
+        self._smoothed = 0.0     # EMA — starts at open so first frame can't trigger closed
 
     def connect(self):
         if self.dry_run:
@@ -121,23 +126,35 @@ class ArduinoController:
         return self.dry_run or (self._serial is not None and self._serial.is_open)
 
     def send_frame(self, landmark_list):
-        """Calculate finger angle from landmarks and send."""
-        finger = calc_gripper_angle(landmark_list)
-        self._send(finger)
-        return finger
+        """Snap to 0 or 90 using EMA smoothing + hysteresis to avoid flickering."""
+        raw = calc_gripper_angle(landmark_list)
+
+        self._smoothed += 0.25 * (raw - self._smoothed)
+
+        # Calibrated thresholds — open hand: 0-10, closed fist: 60-90
+        # Dead zone 20-40 prevents any flickering at the boundary
+        if self._state == 0 and self._smoothed > 55:
+            self._state = 90
+            self._send(90)
+            print("[Servo] → 90° (closed)")
+        elif self._state == 90 and self._smoothed < 25:
+            self._state = 0
+            self._send(0)
+            print("[Servo] → 0° (open)")
+
+        return self._state, int(self._smoothed)
 
     def send_idle(self):
         """Send open position when no hand is detected."""
         self._send(0)
 
     def _send(self, finger):
-        packet = bytes([START_BYTE, finger])
         if self.dry_run:
             print(f"[Arduino] finger={finger}°")
             return
         with self._lock:
             if self._serial and self._serial.is_open:
-                self._serial.write(packet)
+                self._serial.write(bytes([finger]))
 
     def __enter__(self):
         self.connect()
