@@ -288,6 +288,8 @@ def pre_process_landmark(landmark_list):
         pt[1] -= base_y
     flat = list(itertools.chain.from_iterable(pts))
     max_val = max(map(abs, flat))
+    if max_val == 0:
+        return [0.0] * len(flat)
     return [v / max_val for v in flat]
 
 
