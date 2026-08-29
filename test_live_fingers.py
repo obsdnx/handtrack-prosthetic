@@ -123,12 +123,13 @@ class FingerSender:
 
     def _send(self, states):
         pk, rg, md, ix, th = states
-        th_out = 180 - th  # invert thumb to cancel Arduino-side reversal
         s = lambda a: "O" if a == 180 else "C"
-        print(f"[Servo] PK:{s(pk)} RG:{s(rg)} MD:{s(md)} IX:{s(ix)} TH:{s(th)}")
+        print(f"[Servo] TH:{s(th)} IX:{s(ix)} MD:{s(md)} RG:{s(rg)} PK:{s(pk)}")
         with self._lock:
             if self._serial and self._serial.is_open:
-                self._serial.write(bytes([START_BYTE, pk, rg, md, ix, th_out]))
+                # Packet order matches PINS = {12, 11, 10, 9, 13}
+                # Firmware inverts thumb (index 0) as 160 - angle
+                self._serial.write(bytes([START_BYTE, th, ix, md, rg, pk]))
 
 
 def main():
