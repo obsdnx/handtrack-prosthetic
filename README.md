@@ -38,11 +38,11 @@ Each finger on the prosthetic mirrors the corresponding finger on the user's rea
 
 | Servo | Finger | Arduino pin |
 |---|---|---|
-| Servo 1 | Pinky | 9 |
-| Servo 2 | Ring | 10 |
+| Servo 1 | Thumb | 9 |
+| Servo 2 | Index | 10 |
 | Servo 3 | Middle | 11 |
-| Servo 4 | Index | 12 |
-| Servo 5 | Thumb | 13 |
+| Servo 4 | Ring | 12 |
+| Servo 5 | Pinky | 13 |
 
 - Servo signal wires → Arduino pins 9–13
 - Servo power (red) → external 5V supply
@@ -72,7 +72,7 @@ Webcam → MediaPipe hand landmarks → per-finger curl detection → serial pac
 1. MediaPipe detects 21 hand landmarks at ~30fps
 2. For each finger, tip and PIP joint positions are compared to determine if the finger is curled or extended
 3. A vote counter (3 consecutive frames of agreement) filters out noise before committing a state change
-4. A 6-byte serial packet `[0xAA, pinky, ring, middle, index, thumb]` is sent to the Arduino
+4. A 6-byte serial packet `[0xAA, thumb, index, middle, ring, pinky]` is sent to the Arduino
 5. The Arduino writes each servo simultaneously for synchronised movement
 6. The thumb servo angle is inverted in firmware (mechanical reversal)
 

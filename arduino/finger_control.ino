@@ -8,18 +8,18 @@
  *  Each finger is controlled independently in one synchronised packet.
  *  Protocol: 6-byte packet
  *    Byte 0: 0xAA  (start byte — re-syncs if bytes are dropped)
- *    Byte 1: pinky  angle  (0=closed, 180=open)
- *    Byte 2: ring   angle
+ *    Byte 1: thumb  angle  (inverted here: firmware writes 180-angle)
+ *    Byte 2: index  angle
  *    Byte 3: middle angle
- *    Byte 4: index  angle
- *    Byte 5: thumb  angle  (inverted here: firmware writes 180-angle)
+ *    Byte 4: ring   angle
+ *    Byte 5: pinky  angle
  *
  *  Wiring:
- *    Pinky  signal → pin  9
- *    Ring   signal → pin 10
+ *    Thumb  signal → pin  9
+ *    Index  signal → pin 10
  *    Middle signal → pin 11
- *    Index  signal → pin 12
- *    Thumb  signal → pin 13
+ *    Ring   signal → pin 12
+ *    Pinky  signal → pin 13
  *    All servos: red → external 5V, black/brown → external GND + Arduino GND
  * ============================================================
  */
@@ -36,7 +36,7 @@ void setup() {
     Serial.begin(BAUD_RATE);
     for (int i = 0; i < 5; i++) {
         servos[i].attach(PINS[i]);
-        servos[i].write(i == 4 ? 0 : 180);  // thumb reversed: 0 = open
+        servos[i].write(i == 0 ? 0 : 180);  // thumb (pin 9, index 0) reversed: 0 = open
     }
 }
 
@@ -60,7 +60,7 @@ void loop() {
 
     // Write all servos simultaneously
     for (int i = 0; i < 5; i++) {
-        int out = (i == 4) ? 180 - angles[i] : angles[i];  // thumb inverted
+        int out = (i == 0) ? 180 - angles[i] : angles[i];  // thumb (index 0) inverted
         servos[i].write(out);
     }
 

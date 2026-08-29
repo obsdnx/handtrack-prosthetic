@@ -33,15 +33,15 @@ The startup sweep (open → close → open) runs immediately after upload.
 
   Protocol: 6-byte packet
     Byte 0: 0xAA  (start byte, used to re-sync if bytes are dropped)
-    Byte 1: pinky  angle  (0=closed, 180=open)
-    Byte 2: ring   angle
+    Byte 1: thumb  angle  (inverted internally: firmware writes 180-angle)
+    Byte 2: index  angle  (0=closed, 180=open)
     Byte 3: middle angle
-    Byte 4: index  angle
-    Byte 5: thumb  angle  (inverted internally: firmware writes 180-angle)
+    Byte 4: ring   angle
+    Byte 5: pinky  angle
 
   Thumb note: the thumb servo is physically mounted in reverse, so the
-  firmware inverts its angle automatically. Python always sends 0=closed
-  180=open for the thumb, same as the other fingers.
+  firmware inverts byte 1 automatically. Python always sends 0=closed /
+  180=open for the thumb, the same convention as the other fingers.
 
   Python scripts that use this firmware:
     test_finger_control.py      interactive per-finger control
@@ -55,11 +55,11 @@ The startup sweep (open → close → open) runs immediately after upload.
 ================================================================================
 
   Servo signal wires → Arduino digital pins:
-    Pinky  → pin  9
-    Ring   → pin 10
+    Thumb  → pin  9
+    Index  → pin 10
     Middle → pin 11
-    Index  → pin 12
-    Thumb  → pin 13
+    Ring   → pin 12
+    Pinky  → pin 13
 
   Power:
     Servo red wires   → external 5V supply (2A+ recommended)

@@ -192,13 +192,13 @@ def main():
                     most_common_fg_id = Counter(finger_gesture_history).most_common()[0][0]
 
                     # Arduino output — rate-limited to 10Hz to avoid flooding serial buffer
-                    finger_states = [180] * 5
+                    servo_angle, raw_angle = 0, 0
                     now = time.monotonic()
                     if arduino and now - last_serial_send >= SERIAL_INTERVAL:
-                        finger_states = arduino.send_frame(landmark_list)
+                        servo_angle, raw_angle = arduino.send_frame(landmark_list)
                         last_serial_send = now
 
-                    debug_image = draw_servo_angle(debug_image, finger_states)
+                    debug_image = draw_servo_angle(debug_image, servo_angle, raw_angle)
 
                     # Recording
                     if recorder:
@@ -223,7 +223,7 @@ def main():
                 point_history.append([0, 0])
                 if arduino:
                     arduino.send_idle()
-                debug_image = draw_servo_angle(debug_image, [180] * 5)
+                debug_image = draw_servo_angle(debug_image, 0, 0)
 
             debug_image = draw_point_history(debug_image, point_history)
             debug_image = draw_info(debug_image, fps, mode, number)
@@ -317,11 +317,9 @@ def logging_csv(number, mode, landmark_list, point_history_list):
             csv.writer(f).writerow([number, *point_history_list])
 
 
-def draw_servo_angle(image, finger_states):
+def draw_servo_angle(image, angle, raw=0):
     h = image.shape[0]
-    names = ["PK", "RG", "MD", "IX", "TH"]
-    parts = [f"{n}:{'O' if a == 180 else 'C'}" for n, a in zip(names, finger_states)]
-    label = "  ".join(parts)
+    label = f"Hand: {'open' if angle == 0 else 'closed'}  raw: {raw}"
     cv.putText(image, label, (10, h - 20), cv.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 3, cv.LINE_AA)
     cv.putText(image, label, (10, h - 20), cv.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 120), 2, cv.LINE_AA)
     return image

@@ -1,9 +1,14 @@
 """
-Serial controller for Arduino-based prosthetic hand.
+================================================================
+  serial_controller.py  —  SIMPLE OPEN/CLOSE
+================================================================
+  Arduino firmware: prosthetic_hand.ino
 
-Protocol: 6-byte packet [0xAA, pinky, ring, middle, index, thumb]
-  Each finger gets its own angle (0=closed, 180=open).
-  Thumb is pre-inverted in Python to cancel Arduino-side inversion.
+  Counts how many fingers are curled. When enough fingers are
+  curled (smoothed score > 55) all 5 servos close together.
+  When hand opens (score < 25) all 5 servos open together.
+  EMA smoothing + hysteresis prevents flickering.
+================================================================
 """
 import threading
 
@@ -14,15 +19,8 @@ try:
 except ImportError:
     SERIAL_AVAILABLE = False
 
-START_BYTE = 0xAA
-
-# (tip, pip) landmark pairs — Y increases downward, tip > pip means curled
-_JOINTS = [
-    (20, 18),  # pinky
-    (16, 14),  # ring
-    (12, 10),  # middle
-    ( 8,  6),  # index
-]
+# (tip, pip) landmark pairs — tip Y > pip Y means finger is curled
+_FINGER_JOINTS = [(8, 6), (12, 10), (16, 14), (20, 18)]
 
 
 def list_ports():
@@ -41,41 +39,25 @@ def find_arduino():
     return None
 
 
-def calc_finger_angles(landmark_list):
+def calc_gripper_angle(landmark_list):
     """
-    Returns [pinky, ring, middle, index, thumb] angles (0=closed, 180=open).
-    Fingers: tip Y > pip Y means curled → 0.
-    Thumb: tip Y > wrist Y by a margin means curled toward palm → 0.
+    Returns 0–88 based on how many fingers are curled.
+    0 = fully open, 88 = fully closed fist.
     """
     if not landmark_list or len(landmark_list) < 21:
-        return [180] * 5
-
-    angles = []
-    for tip, pip in _JOINTS:
-        angles.append(0 if landmark_list[tip][1] > landmark_list[pip][1] else 180)
-
-    # Thumb — use distance from tip (4) to index MCP (5), normalized by hand size
-    # When thumb curls inward it moves toward the index base regardless of hand orientation
-    def dist(a, b):
-        return ((a[0]-b[0])**2 + (a[1]-b[1])**2) ** 0.5
-    thumb_dist = dist(landmark_list[4], landmark_list[5])
-    hand_scale = dist(landmark_list[0], landmark_list[9])  # wrist to middle MCP
-    thumb_curled = hand_scale > 0 and (thumb_dist / hand_scale) < 0.3
-    angles.append(0 if thumb_curled else 180)
-
-    return angles  # [pinky, ring, middle, index, thumb]
+        return 0
+    curled = sum(
+        1 for tip, pip in _FINGER_JOINTS
+        if landmark_list[tip][1] > landmark_list[pip][1]
+    )
+    return curled * 22  # 0, 22, 44, 66, 88
 
 
 class ArduinoController:
     """
-    Streams per-finger angles to Arduino every frame.
-
-    Uses a vote counter per finger: must see the same state VOTE_THRESHOLD
-    frames in a row before committing, preventing twitching without adding lag.
-    Thumb angle is pre-inverted to cancel Arduino-side inversion.
+    Sends open/close commands to all 5 servos simultaneously.
+    Snaps between 0° (open) and 180° (closed) using EMA + hysteresis.
     """
-
-    VOTE_THRESHOLD = 3  # ~90ms at 30fps before a state change commits
 
     def __init__(self, port, baud=9600, dry_run=False):
         self.port = port
@@ -83,9 +65,8 @@ class ArduinoController:
         self.dry_run = dry_run
         self._serial = None
         self._lock = threading.Lock()
-        self._states     = [180] * 5  # committed state per finger
-        self._candidates = [180] * 5  # what we're voting toward
-        self._votes      = [0]   * 5  # consecutive frames at candidate
+        self._state = 0        # 0=open, 180=closed
+        self._smoothed = 0.0
 
     def connect(self):
         if self.dry_run:
@@ -109,48 +90,38 @@ class ArduinoController:
         return self.dry_run or (self._serial is not None and self._serial.is_open)
 
     def send_frame(self, landmark_list, gesture_label=None):
-        raw = calc_finger_angles(landmark_list)
-        changed = False
+        raw = calc_gripper_angle(landmark_list)
+        self._smoothed += 0.25 * (raw - self._smoothed)
 
-        for i, angle in enumerate(raw):
-            if angle == self._states[i]:
-                self._votes[i] = 0
-                self._candidates[i] = angle
-            else:
-                if angle != self._candidates[i]:
-                    self._candidates[i] = angle
-                    self._votes[i] = 1
-                else:
-                    self._votes[i] += 1
+        if self._state == 0 and self._smoothed > 55:
+            self._state = 180
+            self._send(finger_angle=0, thumb_angle=180)
+            print("[Servo] → closed")
+        elif self._state == 180 and self._smoothed < 25:
+            self._state = 0
+            self._send(finger_angle=180, thumb_angle=0)
+            print("[Servo] → open")
 
-                if self._votes[i] >= self.VOTE_THRESHOLD:
-                    self._states[i] = angle
-                    self._votes[i] = 0
-                    changed = True
-
-        if changed:
-            self._send_packet(self._states)
-
-        return list(self._states)
+        return self._state, int(self._smoothed)
 
     def send_idle(self):
-        target = [180] * 5
-        if self._states != target:
-            self._states = target
-            self._candidates = list(target)
-            self._votes = [0] * 5
-            self._send_packet(self._states)
+        if self._state != 0:
+            self._state = 0
+            self._send(finger_angle=180, thumb_angle=0)
 
-    def _send_packet(self, states):
-        pinky, ring, middle, index, thumb = states
-        thumb_out = 180 - thumb  # pre-inverted to cancel Arduino-side inversion
-        s = lambda a: "O" if a == 180 else "C"
-        print(f"[Servo] PK:{s(pinky)} RG:{s(ring)} MD:{s(middle)} IX:{s(index)} TH:{s(thumb)}")
+    def _send(self, finger_angle, thumb_angle):
+        """Send 6-byte packet: fingers get finger_angle, thumb gets thumb_angle."""
         if self.dry_run:
+            print(f"[Arduino] fingers → {finger_angle}°  thumb → {thumb_angle}°")
             return
         with self._lock:
             if self._serial and self._serial.is_open:
-                self._serial.write(bytes([START_BYTE, pinky, ring, middle, index, thumb_out]))
+                self._serial.write(bytes([
+                    0xAA,
+                    thumb_angle,                                      # pin 9
+                    finger_angle, finger_angle, finger_angle,         # pins 10-12
+                    finger_angle,                                     # pin 13
+                ]))
 
     def __enter__(self):
         self.connect()
