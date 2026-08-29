@@ -10,11 +10,11 @@
  *  Receives one byte per command: 0 = closed, 180 = open.
  *
  *  Wiring:
- *    Pinky  signal → pin  9
- *    Ring   signal → pin 10
+ *    Thumb  signal → pin  9
+ *    Index  signal → pin 10
  *    Middle signal → pin 11
- *    Index  signal → pin 12
- *    Thumb  signal → pin 13
+ *    Ring   signal → pin 12
+ *    Pinky  signal → pin 13
  *    All servos: red → external 5V, black/brown → external GND + Arduino GND
  * ============================================================
  */
@@ -23,27 +23,27 @@
 
 const int BAUD_RATE = 9600;
 
-Servo servo1;
-Servo servo2;
-Servo servo3;
-Servo servo4;
-Servo servo5;
+Servo thumb;
+Servo index;
+Servo middle;
+Servo ring;
+Servo pinky;
 
 void writeAll(int angle) {
-    servo1.write(angle);
-    servo2.write(angle);
-    servo3.write(angle);
-    servo4.write(angle);
-    servo5.write(angle);
+    thumb.write(angle);
+    index.write(angle);
+    middle.write(angle);
+    ring.write(angle);
+    pinky.write(angle);
 }
 
 void setup() {
     Serial.begin(BAUD_RATE);
-    servo1.attach(9);
-    servo2.attach(10);
-    servo3.attach(11);
-    servo4.attach(12);
-    servo5.attach(13);
+    thumb.attach(9);
+    index.attach(10);
+    middle.attach(11);
+    ring.attach(12);
+    pinky.attach(13);
 
     // Startup sweep — confirms all servos are wired and working
     writeAll(180); delay(700);
