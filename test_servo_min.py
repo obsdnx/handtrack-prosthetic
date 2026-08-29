@@ -1,4 +1,20 @@
-"""Minimum servo test — sends a single angle byte, no framing."""
+"""
+================================================================
+  test_servo_min.py  —  MINIMAL SANITY CHECK
+================================================================
+  Arduino firmware: prosthetic_hand.ino  (simple open/close)
+
+  The simplest possible serial test. Sends a single raw byte
+  (no start byte, no framing) and checks that the servos respond.
+  Use this first if you suspect a serial communication problem.
+
+  Sends: 90° (closed) → 0° (open), three rounds with 2s holds.
+
+  Usage:
+    python test_servo_min.py
+    python test_servo_min.py /dev/cu.usbmodemXXXX
+================================================================
+"""
 import sys, time, serial, serial.tools.list_ports
 
 def find_arduino():

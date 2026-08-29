@@ -1,0 +1,129 @@
+================================================================================
+  PROSTHETIC HAND — HOW TO RUN
+================================================================================
+
+HARDWARE SETUP
+--------------
+- Arduino pins 9–13 → servo signal wires (yellow/orange/white)
+- External 5V supply (2A+) → all servo red wires
+- External GND → all servo black/brown wires AND Arduino GND pin (shared ground)
+- USB → Arduino (for serial communication and programming)
+
+Finger mapping:
+  Pin  9  →  Servo 1  (pinky)
+  Pin 10  →  Servo 2  (ring)
+  Pin 11  →  Servo 3  (middle)
+  Pin 12  →  Servo 4  (index)
+  Pin 13  →  Servo 5  (thumb)   ← mechanically reversed, handled in firmware
+
+
+================================================================================
+  ARDUINO FIRMWARE  (flash one of these via Arduino IDE)
+================================================================================
+
+  arduino/prosthetic_hand.ino
+    Simple open/close — all 5 fingers move together.
+    Receives a single byte (0=closed, 180=open) and writes it to all servos.
+    Use with: app.py (simple mode), test_servo_interactive.py, test_servo_direct.py
+
+  arduino/finger_control.ino
+    Per-finger control — each finger moves independently.
+    Receives a 6-byte packet [0xAA, pinky, ring, middle, index, thumb].
+    Thumb angle is automatically inverted (mechanical reversal).
+    Use with: app.py (per-finger mode), test_finger_control.py
+
+
+================================================================================
+  PYTHON SCRIPTS  (run from this directory with venv active)
+================================================================================
+
+  source venv/bin/activate        ← activate virtual environment first
+
+
+  ── MAIN APP ────────────────────────────────────────────────────────────────
+
+  ./run.sh                        ← easiest way to launch the main app
+    or: python app.py --arduino
+
+  app.py
+    Full hand-tracking app. Opens webcam, detects hand via MediaPipe, and
+    drives the prosthetic hand in real time.
+
+    Modes:
+      python app.py --arduino           real hardware, auto-detect port
+      python app.py --arduino /dev/cu.usbmodemXXXX   specify port manually
+      python app.py --dry-run           no Arduino needed, logs to terminal
+      python app.py --list-ports        show available serial ports
+
+    Currently runs: per-finger detection (finger_control.ino required)
+    Each finger is tracked independently. Thumb curls toward index base.
+    A state change requires 3 consecutive frames of agreement before committing.
+
+    Overlay shows: PK:O RG:C MD:O IX:O TH:O  (O=open C=closed)
+
+
+  ── HARDWARE TESTS (no camera) ───────────────────────────────────────────────
+
+  test_servo_interactive.py
+    Pairs with: prosthetic_hand.ino
+    Interactive — type an angle (0–180) and press Enter to send it to all
+    5 servos simultaneously. Good for manually verifying servo range and wiring.
+    Run: python test_servo_interactive.py
+
+  test_servo_direct.py
+    Pairs with: prosthetic_hand.ino
+    Automated sweep — sends 0° then 180° three times with 2s holds.
+    Good for confirming all servos respond without touching anything.
+    Run: python test_servo_direct.py
+
+  test_finger_control.py
+    Pairs with: finger_control.ino
+    Interactive — type a finger number and angle to move one finger at a time,
+    or "all <angle>" to move all together.
+    Input format:  <finger 1-5> <angle 0-180>   e.g.  3 90   or   all 0
+    Fingers: 1=pinky, 2=ring, 3=middle, 4=index, 5=thumb
+    Run: python test_finger_control.py
+
+
+  test_live_fingers.py
+    Pairs with: finger_control.ino
+    Live camera + Arduino with clear terminal logging. Equivalent to running
+    app.py --dry-run but sends real serial commands to the Arduino.
+    Stripped down (no gesture classifier, no overlays) so the terminal output
+    is easy to read while watching the servos move.
+    Run: python test_live_fingers.py
+
+  ── DIAGNOSTIC / LEGACY ──────────────────────────────────────────────────────
+
+  test_servo_min.py
+    Pairs with: prosthetic_hand.ino
+    Minimal single-byte sweep. Sends 90° then 0° three rounds.
+    Useful as the simplest possible sanity check that serial is working.
+    Run: python test_servo_min.py
+
+
+================================================================================
+  QUICK START GUIDE
+================================================================================
+
+  First time / checking wiring:
+    1. Flash  arduino/prosthetic_hand.ino
+    2. Run    python test_servo_direct.py
+       → All 5 servos should sweep open→closed three times.
+
+  Per-finger live tracking:
+    1. Flash  arduino/finger_control.ino
+    2. Run    ./run.sh
+       → Hold hand in front of webcam. Curl fingers to close, extend to open.
+
+  Per-finger interactive test (no camera):
+    1. Flash  arduino/finger_control.ino
+    2. Run    python test_finger_control.py
+       → Type  "3 0"  to close the middle finger.
+       → Type  "all 180"  to open all fingers.
+
+  Dry run (no Arduino, just check detection):
+    python app.py --dry-run
+    → Watch the terminal for [Servo] lines as you move your hand.
+
+================================================================================

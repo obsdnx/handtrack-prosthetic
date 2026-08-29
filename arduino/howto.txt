@@ -1,0 +1,73 @@
+================================================================================
+  ARDUINO FIRMWARE — HOW TO FLASH
+================================================================================
+
+Open the .ino file in Arduino IDE, select your board and port, click Upload.
+The startup sweep (open → close → open) runs immediately after upload.
+
+================================================================================
+  FIRMWARE FILES
+================================================================================
+
+  prosthetic_hand.ino  —  SIMPLE OPEN/CLOSE
+  ──────────────────────────────────────────
+  All 5 fingers move together as one unit.
+
+  Protocol: single byte per command
+    0   → all fingers closed
+    180 → all fingers open
+    (any value 0–180 sets all servos to that angle)
+
+  Python scripts that use this firmware:
+    test_servo_interactive.py   type an angle, all fingers move
+    test_servo_direct.py        automated open/close sweep
+    test_servo_min.py           minimal sweep sanity check
+    app.py (simple mode)        camera-driven open/close
+
+  Best for: basic grip control, testing wiring, getting started.
+
+
+  finger_control.ino  —  PER-FINGER CONTROL
+  ──────────────────────────────────────────
+  Each finger is controlled independently and synchronised in one packet.
+
+  Protocol: 6-byte packet
+    Byte 0: 0xAA  (start byte, used to re-sync if bytes are dropped)
+    Byte 1: pinky  angle  (0=closed, 180=open)
+    Byte 2: ring   angle
+    Byte 3: middle angle
+    Byte 4: index  angle
+    Byte 5: thumb  angle  (inverted internally: firmware writes 180-angle)
+
+  Thumb note: the thumb servo is physically mounted in reverse, so the
+  firmware inverts its angle automatically. Python always sends 0=closed
+  180=open for the thumb, same as the other fingers.
+
+  Python scripts that use this firmware:
+    test_finger_control.py      interactive per-finger control
+    app.py (per-finger mode)    camera-driven individual finger tracking
+
+  Best for: live hand replication, individual finger gestures.
+
+
+================================================================================
+  WIRING (same for both firmware files)
+================================================================================
+
+  Servo signal wires → Arduino digital pins:
+    Pinky  → pin  9
+    Ring   → pin 10
+    Middle → pin 11
+    Index  → pin 12
+    Thumb  → pin 13
+
+  Power:
+    Servo red wires   → external 5V supply (2A+ recommended)
+    Servo GND wires   → external supply GND
+    Arduino GND pin   → same external supply GND  (shared ground is required)
+    Arduino USB       → computer (serial communication)
+
+  Do NOT power servos from the Arduino 5V pin — it cannot supply enough
+  current for 5 servos and will cause brownouts/resets.
+
+================================================================================

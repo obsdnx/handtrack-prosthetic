@@ -1,4 +1,29 @@
 #!/usr/bin/env python
+"""
+================================================================
+  app.py  —  MAIN HAND-TRACKING APP
+================================================================
+  Arduino firmware: finger_control.ino  (per-finger)
+
+  Opens the webcam, detects your hand via MediaPipe, and drives
+  each prosthetic finger independently in real time.
+  Each finger requires 3 consecutive frames of agreement before
+  its state commits, preventing twitching.
+
+  Usage:
+    ./run.sh                                  easiest way to launch
+    python app.py --arduino                   auto-detect Arduino port
+    python app.py --arduino /dev/cu.usbmodemXXXX   specify port
+    python app.py --dry-run                   no Arduino, logs to terminal
+    python app.py --list-ports                show available serial ports
+
+  Overlay legend (bottom of camera window):
+    PK=pinky  RG=ring  MD=middle  IX=index  TH=thumb
+    O=open  C=closed
+
+  Press ESC to quit.
+================================================================
+"""
 import csv
 import copy
 import argparse
@@ -167,14 +192,13 @@ def main():
                     most_common_fg_id = Counter(finger_gesture_history).most_common()[0][0]
 
                     # Arduino output — rate-limited to 10Hz to avoid flooding serial buffer
-                    servo_angle = 0
-                    raw_angle = 0
+                    finger_states = [180] * 5
                     now = time.monotonic()
                     if arduino and now - last_serial_send >= SERIAL_INTERVAL:
-                        servo_angle, raw_angle = arduino.send_frame(landmark_list)
+                        finger_states = arduino.send_frame(landmark_list)
                         last_serial_send = now
 
-                    debug_image = draw_servo_angle(debug_image, servo_angle, raw_angle)
+                    debug_image = draw_servo_angle(debug_image, finger_states)
 
                     # Recording
                     if recorder:
@@ -199,7 +223,7 @@ def main():
                 point_history.append([0, 0])
                 if arduino:
                     arduino.send_idle()
-                debug_image = draw_servo_angle(debug_image, 0, 0)
+                debug_image = draw_servo_angle(debug_image, [180] * 5)
 
             debug_image = draw_point_history(debug_image, point_history)
             debug_image = draw_info(debug_image, fps, mode, number)
@@ -291,9 +315,11 @@ def logging_csv(number, mode, landmark_list, point_history_list):
             csv.writer(f).writerow([number, *point_history_list])
 
 
-def draw_servo_angle(image, angle, raw=0):
+def draw_servo_angle(image, finger_states):
     h = image.shape[0]
-    label = f"Servo: {angle:2d}deg  raw: {raw:2d}"
+    names = ["PK", "RG", "MD", "IX", "TH"]
+    parts = [f"{n}:{'O' if a == 180 else 'C'}" for n, a in zip(names, finger_states)]
+    label = "  ".join(parts)
     cv.putText(image, label, (10, h - 20), cv.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 3, cv.LINE_AA)
     cv.putText(image, label, (10, h - 20), cv.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 120), 2, cv.LINE_AA)
     return image

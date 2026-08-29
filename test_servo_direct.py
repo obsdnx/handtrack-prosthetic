@@ -1,6 +1,17 @@
 """
-Direct servo test — no camera, no handshake, just forces servo to 90° then 0°.
-Run: python test_servo_direct.py
+================================================================
+  test_servo_direct.py  —  AUTOMATED OPEN/CLOSE SWEEP
+================================================================
+  Arduino firmware: prosthetic_hand.ino  (simple open/close)
+
+  Automatically sends closed (0°) then open (180°) three times
+  with 2-second holds. No input needed — just run and watch.
+  Good for confirming all 5 servos respond without touching anything.
+
+  Usage:
+    python test_servo_direct.py
+    python test_servo_direct.py /dev/cu.usbmodemXXXX
+================================================================
 """
 import sys
 import time
@@ -28,17 +39,13 @@ time.sleep(3)
 for i in range(1, 4):
     print(f"\n--- Round {i}/3 ---")
 
-    print("Sending 90° (closed)...")
-    for _ in range(10):
-        ser.write(bytes([0xAA, 90]))
-        time.sleep(0.1)
+    print("Sending 0° (closed)...")
+    ser.write(bytes([0]))
     print("Holding 2s...")
     time.sleep(2)
 
-    print("Sending 0° (open)...")
-    for _ in range(10):
-        ser.write(bytes([0xAA, 0]))
-        time.sleep(0.1)
+    print("Sending 180° (open)...")
+    ser.write(bytes([180]))
     print("Holding 2s...")
     time.sleep(2)
 
