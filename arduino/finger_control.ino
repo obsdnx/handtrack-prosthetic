@@ -60,7 +60,14 @@ void loop() {
 
     // Write all servos simultaneously
     for (int i = 0; i < 5; i++) {
-        int out = (i == 0) ? 160 - angles[i] : angles[i];  // thumb inverted, max 160
+        int out;
+        if (i == 0) {
+            out = 160 - angles[i];                          // thumb inverted
+        } else if (i == 3) {
+            out = angles[i] > 20 ? angles[i] - 20 : 0;     // ring offset by 20°
+        } else {
+            out = angles[i];
+        }
         servos[i].write(constrain(out, 0, 160));
     }
 
