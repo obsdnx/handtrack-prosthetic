@@ -30,7 +30,7 @@ Servo ring;
 Servo pinky;
 
 void writeAll(int angle) {
-    thumb.write(angle);
+    thumb.write(180 - angle);  // mechanically reversed
     index.write(angle);
     middle.write(angle);
     ring.write(angle);
