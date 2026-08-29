@@ -60,7 +60,7 @@ def calc_finger_angles(lm):
     def dist(a, b): return ((a[0]-b[0])**2 + (a[1]-b[1])**2) ** 0.5
     thumb_dist = dist(lm[4], lm[5])
     hand_scale = dist(lm[0], lm[9])
-    thumb_curled = hand_scale > 0 and (thumb_dist / hand_scale) < 0.3
+    thumb_curled = hand_scale > 0 and (thumb_dist / hand_scale) < 0.4
     angles.append(0 if thumb_curled else 180)
     return angles
 
