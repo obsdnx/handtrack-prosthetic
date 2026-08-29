@@ -30,7 +30,8 @@ Servo ring;
 Servo pinky;
 
 void writeAll(int angle) {
-    thumb.write(180 - angle);  // mechanically reversed
+    angle = constrain(angle, 0, 160);
+    thumb.write(160 - angle);  // mechanically reversed, capped at 160
     index.write(angle);
     middle.write(angle);
     ring.write(angle);
@@ -46,9 +47,9 @@ void setup() {
     pinky.attach(13);
 
     // Startup sweep — confirms all servos are wired and working
-    writeAll(180); delay(700);
+    writeAll(160); delay(700);
     writeAll(0);   delay(700);
-    writeAll(180); delay(500);
+    writeAll(160); delay(500);
 }
 
 void loop() {

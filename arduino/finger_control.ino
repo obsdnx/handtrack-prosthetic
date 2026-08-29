@@ -36,7 +36,7 @@ void setup() {
     Serial.begin(BAUD_RATE);
     for (int i = 0; i < 5; i++) {
         servos[i].attach(PINS[i]);
-        servos[i].write(i == 0 ? 0 : 180);  // thumb (pin 9, index 0) reversed: 0 = open
+        servos[i].write(i == 0 ? 0 : 160);  // thumb (index 0) reversed: 0 = open; max 160
     }
 }
 
@@ -60,8 +60,8 @@ void loop() {
 
     // Write all servos simultaneously
     for (int i = 0; i < 5; i++) {
-        int out = (i == 0) ? 180 - angles[i] : angles[i];  // thumb (index 0) inverted
-        servos[i].write(out);
+        int out = (i == 0) ? 160 - angles[i] : angles[i];  // thumb inverted, max 160
+        servos[i].write(constrain(out, 0, 160));
     }
 
     Serial.write(START_BYTE);  // echo start byte to confirm receipt
