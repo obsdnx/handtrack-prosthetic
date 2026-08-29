@@ -15,10 +15,10 @@
  *    Byte 5: pinky  angle
  *
  *  Wiring:
- *    Thumb  signal → pin  9
- *    Index  signal → pin 10
- *    Middle signal → pin 11
- *    Ring   signal → pin 12
+ *    Thumb  signal → pin 12
+ *    Index  signal → pin 11
+ *    Middle signal → pin 10
+ *    Ring   signal → pin  9
  *    Pinky  signal → pin 13
  *    All servos: red → external 5V, black/brown → external GND + Arduino GND
  * ============================================================
@@ -30,7 +30,7 @@ const int BAUD_RATE = 9600;
 const byte START_BYTE = 0xAA;
 
 Servo servos[5];
-const int PINS[5] = {9, 10, 11, 12, 13};
+const int PINS[5] = {12, 11, 10, 9, 13};  // thumb, index, middle, ring, pinky
 
 void setup() {
     Serial.begin(BAUD_RATE);

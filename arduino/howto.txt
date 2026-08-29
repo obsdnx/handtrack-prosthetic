@@ -55,10 +55,10 @@ The startup sweep (open → close → open) runs immediately after upload.
 ================================================================================
 
   Servo signal wires → Arduino digital pins:
-    Thumb  → pin  9
-    Index  → pin 10
-    Middle → pin 11
-    Ring   → pin 12
+    Thumb  → pin 12
+    Index  → pin 11
+    Middle → pin 10
+    Ring   → pin  9
     Pinky  → pin 13
 
   Power:

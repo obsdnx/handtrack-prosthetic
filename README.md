@@ -38,10 +38,10 @@ Each finger on the prosthetic mirrors the corresponding finger on the user's rea
 
 | Servo | Finger | Arduino pin |
 |---|---|---|
-| Servo 1 | Thumb | 9 |
-| Servo 2 | Index | 10 |
-| Servo 3 | Middle | 11 |
-| Servo 4 | Ring | 12 |
+| Servo 1 | Thumb | 12 |
+| Servo 2 | Index | 11 |
+| Servo 3 | Middle | 10 |
+| Servo 4 | Ring | 9 |
 | Servo 5 | Pinky | 13 |
 
 - Servo signal wires → Arduino pins 9–13
