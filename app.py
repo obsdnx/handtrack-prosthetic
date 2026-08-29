@@ -1,9 +1,35 @@
 #!/usr/bin/env python
+"""
+================================================================
+  app.py  —  MAIN HAND-TRACKING APP
+================================================================
+  Arduino firmware: finger_control.ino  (per-finger)
+
+  Opens the webcam, detects your hand via MediaPipe, and drives
+  each prosthetic finger independently in real time.
+  Each finger requires 3 consecutive frames of agreement before
+  its state commits, preventing twitching.
+
+  Usage:
+    ./run.sh                                  easiest way to launch
+    python app.py --arduino                   auto-detect Arduino port
+    python app.py --arduino /dev/cu.usbmodemXXXX   specify port
+    python app.py --dry-run                   no Arduino, logs to terminal
+    python app.py --list-ports                show available serial ports
+
+  Overlay legend (bottom of camera window):
+    PK=pinky  RG=ring  MD=middle  IX=index  TH=thumb
+    O=open  C=closed
+
+  Press ESC to quit.
+================================================================
+"""
 import csv
 import copy
 import argparse
 import itertools
 import sys
+import time
 from collections import Counter, deque
 
 import cv2 as cv
@@ -12,6 +38,8 @@ import mediapipe as mp
 
 from utils import CvFpsCalc
 from model import KeyPointClassifier, PointHistoryClassifier
+from prosthetic.serial_controller import ArduinoController, list_ports, find_arduino
+from prosthetic.recorder import GestureRecorder
 
 FINGERTIP_INDICES = {4, 8, 12, 16, 20}
 
@@ -33,11 +61,51 @@ def get_args():
     parser.add_argument("--use_static_image_mode", action="store_true")
     parser.add_argument("--min_detection_confidence", type=float, default=0.7)
     parser.add_argument("--min_tracking_confidence", type=float, default=0.5)
+    # Arduino
+    parser.add_argument("--arduino", nargs="?", const="auto", default=None,
+                        help="Connect to Arduino. Optionally specify port (e.g. /dev/cu.usbmodem101). "
+                             "Omit port to auto-detect. Use --list-ports to discover available ports.")
+    parser.add_argument("--baud", type=int, default=9600)
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Print Arduino commands without sending (no hardware needed)")
+    parser.add_argument("--list-ports", action="store_true",
+                        help="List available serial ports and exit")
+    # Recording
+    parser.add_argument("--record", action="store_true",
+                        help="Record gesture session to recordings/")
     return parser.parse_args()
 
 
 def main():
     args = get_args()
+
+    if args.list_ports:
+        ports = list_ports()
+        if ports:
+            print("Available serial ports:")
+            for p in ports:
+                print(f"  {p}")
+        else:
+            print("No serial ports found.")
+        return
+
+    arduino = None
+    if args.arduino is not None or args.dry_run:
+        port = (None if args.arduino == "auto" else args.arduino) or find_arduino()
+        if not port and not args.dry_run:
+            print("Error: no Arduino found. Plug it in or specify --arduino /dev/cu.xxx", file=sys.stderr)
+            sys.exit(1)
+        arduino = ArduinoController(
+            port=port or "DRY_RUN",
+            baud=9600,
+            dry_run=args.dry_run,
+        )
+        arduino.connect()
+
+    recorder = None
+    if args.record:
+        recorder = GestureRecorder()
+        recorder.start()
 
     cap = cv.VideoCapture(args.device)
     if not cap.isOpened():
@@ -70,75 +138,107 @@ def main():
     )
 
     fps_calc = CvFpsCalc(buffer_len=10)
+    last_serial_send = 0.0
+    SERIAL_INTERVAL = 0.1  # send to Arduino at most 10 times/second
 
     history_length = 16
     point_history = deque(maxlen=history_length)
     finger_gesture_history = deque(maxlen=history_length)
     mode = 0
 
-    while True:
-        fps = fps_calc.get()
-        key = cv.waitKey(10)
-        if key == 27:  # ESC
-            break
-        number, mode = select_mode(key, mode)
+    try:
+        while True:
+            fps = fps_calc.get()
+            key = cv.waitKey(10)
+            if key == 27:  # ESC
+                break
+            number, mode = select_mode(key, mode)
 
-        ret, image = cap.read()
-        if not ret:
-            break
+            ret, image = cap.read()
+            if not ret:
+                break
 
-        image = cv.flip(image, 1)
-        debug_image = copy.deepcopy(image)
+            image = cv.flip(image, 1)
+            debug_image = copy.deepcopy(image)
 
-        rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB)
-        rgb.flags.writeable = False
-        results = hands.process(rgb)
-        rgb.flags.writeable = True
+            rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+            rgb.flags.writeable = False
+            results = hands.process(rgb)
+            rgb.flags.writeable = True
 
-        if results.multi_hand_landmarks:
-            for hand_landmarks, handedness in zip(
-                results.multi_hand_landmarks, results.multi_handedness
-            ):
-                brect = calc_bounding_rect(debug_image, hand_landmarks)
-                landmark_list = calc_landmark_list(debug_image, hand_landmarks)
+            if results.multi_hand_landmarks:
+                for hand_landmarks, handedness in zip(
+                    results.multi_hand_landmarks, results.multi_handedness
+                ):
+                    brect = calc_bounding_rect(debug_image, hand_landmarks)
+                    landmark_list = calc_landmark_list(debug_image, hand_landmarks)
 
-                pre_landmarks = pre_process_landmark(landmark_list)
-                pre_point_history = pre_process_point_history(debug_image, point_history)
+                    pre_landmarks = pre_process_landmark(landmark_list)
+                    pre_point_history = pre_process_point_history(debug_image, point_history)
 
-                logging_csv(number, mode, pre_landmarks, pre_point_history)
+                    logging_csv(number, mode, pre_landmarks, pre_point_history)
 
-                hand_sign_id = keypoint_classifier(pre_landmarks)
-                if hand_sign_id == 2:  # pointing gesture tracks index fingertip
-                    point_history.append(landmark_list[8])
-                else:
-                    point_history.append([0, 0])
+                    hand_sign_id = keypoint_classifier(pre_landmarks)
+                    if hand_sign_id == 2:  # pointing gesture tracks index fingertip
+                        point_history.append(landmark_list[8])
+                    else:
+                        point_history.append([0, 0])
 
-                finger_gesture_id = 0
-                if len(pre_point_history) == history_length * 2:
-                    finger_gesture_id = point_history_classifier(pre_point_history)
+                    finger_gesture_id = 0
+                    if len(pre_point_history) == history_length * 2:
+                        finger_gesture_id = point_history_classifier(pre_point_history)
 
-                finger_gesture_history.append(finger_gesture_id)
-                most_common_fg_id = Counter(finger_gesture_history).most_common()[0][0]
+                    finger_gesture_history.append(finger_gesture_id)
+                    most_common_fg_id = Counter(finger_gesture_history).most_common()[0][0]
 
-                debug_image = draw_bounding_rect(debug_image, brect)
-                debug_image = draw_landmarks(debug_image, landmark_list)
-                debug_image = draw_info_text(
-                    debug_image,
-                    brect,
-                    handedness,
-                    keypoint_labels[hand_sign_id],
-                    point_history_labels[most_common_fg_id],
-                )
-        else:
-            point_history.append([0, 0])
+                    # Arduino output — rate-limited to 10Hz to avoid flooding serial buffer
+                    finger_states = [180] * 5
+                    now = time.monotonic()
+                    if arduino and now - last_serial_send >= SERIAL_INTERVAL:
+                        finger_states = arduino.send_frame(landmark_list)
+                        last_serial_send = now
 
-        debug_image = draw_point_history(debug_image, point_history)
-        debug_image = draw_info(debug_image, fps, mode, number)
+                    debug_image = draw_servo_angle(debug_image, finger_states)
 
-        cv.imshow("Hand Gesture Recognition", debug_image)
+                    # Recording
+                    if recorder:
+                        recorder.record(
+                            gesture_id=int(hand_sign_id),
+                            gesture_label=keypoint_labels[hand_sign_id],
+                            motion_id=int(most_common_fg_id),
+                            motion_label=point_history_labels[most_common_fg_id],
+                            landmark_list=landmark_list,
+                        )
 
-    cap.release()
-    cv.destroyAllWindows()
+                    debug_image = draw_bounding_rect(debug_image, brect)
+                    debug_image = draw_landmarks(debug_image, landmark_list)
+                    debug_image = draw_info_text(
+                        debug_image,
+                        brect,
+                        handedness,
+                        keypoint_labels[hand_sign_id],
+                        point_history_labels[most_common_fg_id],
+                    )
+            else:
+                point_history.append([0, 0])
+                if arduino:
+                    arduino.send_idle()
+                debug_image = draw_servo_angle(debug_image, [180] * 5)
+
+            debug_image = draw_point_history(debug_image, point_history)
+            debug_image = draw_info(debug_image, fps, mode, number)
+
+            cv.imshow("Hand Gesture Recognition", debug_image)
+
+    except KeyboardInterrupt:
+        pass
+    finally:
+        cap.release()
+        cv.destroyAllWindows()
+        if recorder:
+            recorder.stop()
+        if arduino:
+            arduino.disconnect()
 
 
 def _load_labels(path):
@@ -188,6 +288,8 @@ def pre_process_landmark(landmark_list):
         pt[1] -= base_y
     flat = list(itertools.chain.from_iterable(pts))
     max_val = max(map(abs, flat))
+    if max_val == 0:
+        return [0.0] * len(flat)
     return [v / max_val for v in flat]
 
 
@@ -213,6 +315,16 @@ def logging_csv(number, mode, landmark_list, point_history_list):
             "model/point_history_classifier/point_history.csv", "a", newline=""
         ) as f:
             csv.writer(f).writerow([number, *point_history_list])
+
+
+def draw_servo_angle(image, finger_states):
+    h = image.shape[0]
+    names = ["PK", "RG", "MD", "IX", "TH"]
+    parts = [f"{n}:{'O' if a == 180 else 'C'}" for n, a in zip(names, finger_states)]
+    label = "  ".join(parts)
+    cv.putText(image, label, (10, h - 20), cv.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 3, cv.LINE_AA)
+    cv.putText(image, label, (10, h - 20), cv.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 120), 2, cv.LINE_AA)
+    return image
 
 
 def draw_landmarks(image, landmark_point):
