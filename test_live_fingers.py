@@ -58,16 +58,9 @@ def calc_finger_angles(lm):
         return [180] * 5
     angles = [0 if lm[tip][1] > lm[pip][1] else 180 for tip, pip in _JOINTS]
     def dist(a, b): return ((a[0]-b[0])**2 + (a[1]-b[1])**2) ** 0.5
+    thumb_dist = dist(lm[4], lm[5])
     hand_scale = dist(lm[0], lm[9])
-    if hand_scale > 0:
-        # Both conditions must be true to call the thumb curled:
-        # 1. tip close to index MCP (classic check)
-        # 2. tip close to thumb MCP (rules out rotation false-positives)
-        tip_to_index_mcp  = dist(lm[4], lm[5]) / hand_scale < 0.3
-        tip_to_thumb_mcp  = dist(lm[4], lm[2]) / hand_scale < 0.5
-        thumb_curled = tip_to_index_mcp and tip_to_thumb_mcp
-    else:
-        thumb_curled = False
+    thumb_curled = hand_scale > 0 and (thumb_dist / hand_scale) < 0.3
     angles.append(0 if thumb_curled else 180)
     return angles
 
