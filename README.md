@@ -4,6 +4,10 @@ Real-time hand sign and finger gesture recognition using MediaPipe and a lightwe
 
 ![demo](https://user-images.githubusercontent.com/37477845/102222442-c452cd00-3f26-11eb-93ec-c387c98231be.gif)
 
+## Hardware
+
+![Hardware setup](media/hardware-setup.png)
+
 ---
 
 ## Setup on macOS
