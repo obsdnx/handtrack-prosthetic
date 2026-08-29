@@ -34,7 +34,7 @@ void writeAll(int angle) {
     thumb.write(160 - angle);  // mechanically reversed, capped at 160
     index.write(angle);
     middle.write(angle);
-    ring.write(angle);
+    ring.write(angle > 20 ? angle - 20 : 0);
     pinky.write(angle);
 }
 
